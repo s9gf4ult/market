@@ -1,3 +1,13 @@
+{-# LANGUAGE
+  QuasiQuotes
+, TypeFamilies
+, GeneralizedNewtypeDeriving
+, TemplateHaskell
+, OverloadedStrings
+, GADTs
+, FlexibleContexts #-}
+
+
 module Market.Board where
 
 import Control.Applicative
@@ -34,8 +44,6 @@ data Order = LO LimitOrder
 
 orderTime :: Order -> UTCTime
 orderTime (LO lo) = loTime lo
-
-data Ticker = Ticker
 
 data BoardSimulator = BoardSimulator
                       { bsPool :: ConnectionPool

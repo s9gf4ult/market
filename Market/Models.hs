@@ -1,3 +1,12 @@
+{-# LANGUAGE
+  QuasiQuotes
+, TypeFamilies
+, GeneralizedNewtypeDeriving
+, TemplateHaskell
+, OverloadedStrings
+, GADTs
+, FlexibleContexts #-}
+
 module Market.Models where
 
 import Database.Persist.TH

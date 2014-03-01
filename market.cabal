@@ -18,15 +18,8 @@ cabal-version:       >=1.10
 library
   exposed-modules:     Market.Models
                      , Market.Board
-  -- other-modules:
+
   ghc-options: -Wall
-  extensions:   QuasiQuotes
-              , TypeFamilies
-              , GeneralizedNewtypeDeriving
-              , TemplateHaskell
-              , OverloadedStrings
-              , GADTs
-              , FlexibleContexts
 
   build-depends:       base >=4.6 && <= 4.7
                      , conduit
@@ -41,5 +34,25 @@ library
                      , transformers
                      , monad-logger
 
-  -- hs-source-dirs:
   default-language:    Haskell2010
+
+test-suite board_simulator
+  default-language:    Haskell2010
+  type: exitcode-stdio-1.0
+  main-is: tests/board_simulator.hs
+  ghc-options: -Wall
+
+  build-depends:       base >=4.6 && <= 4.7
+                     , conduit
+                     , containers
+                     , monad-control
+                     , persistent
+                     , persistent-sqlite
+                     , persistent-template
+                     , pool-conduit
+                     , stm
+                     , text
+                     , time
+                     , transformers
+                     , monad-logger
+                     , hspec
