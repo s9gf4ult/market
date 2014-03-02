@@ -55,4 +55,6 @@ test-suite board_simulator
                      , time
                      , transformers
                      , monad-logger
-                     , hspec
+                     , tasty
+                     , tasty-hunit
+                     , HUnit

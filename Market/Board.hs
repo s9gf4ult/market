@@ -55,15 +55,19 @@ data BoardSimulator = BoardSimulator
                       }
 
 
-createBoardSimulator :: ConnectionPool -> UTCTime -> Rational -> IO BoardSimulator
-createBoardSimulator pool lasttime startmoney = atomically $
-                                                BoardSimulator
-                                                <$> return pool
-                                                <*> newTVar lasttime
-                                                <*> newTVar M.empty
-                                                <*> newTVar startmoney
-                                                <*> newTVar 0
-                                                <*> newTVar 0
+createBoardSimulator :: ConnectionPool
+                        -> UTCTime
+                        -> Rational
+                        -> Rational
+                        -> IO BoardSimulator
+createBoardSimulator pool lasttime startmoney starttickers = atomically $
+                                                             BoardSimulator
+                                                             <$> return pool
+                                                             <*> newTVar lasttime
+                                                             <*> newTVar M.empty
+                                                             <*> newTVar startmoney
+                                                             <*> newTVar starttickers
+                                                             <*> newTVar 0
 
 
 -- Registers new limit order and return it's id
@@ -74,6 +78,11 @@ registerLimitOrder simulator lo = atomically $ do
   writeTVar (bsLastOrderId simulator) oid
   return oid
 
+getMoney :: BoardSimulator -> IO Rational
+getMoney sim = readTVarIO $ bsMoney sim
+
+getTickers :: BoardSimulator -> IO Rational
+getTickers sim = readTVarIO $ bsTickers sim
 
 -- return True if
 cancelOrder :: BoardSimulator -> OrderId -> IO Bool
