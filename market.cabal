@@ -18,6 +18,8 @@ cabal-version:       >=1.10
 library
   exposed-modules:     Market.Models
                      , Market.Board
+                     , Market.Board.Types
+                     , Market.Board.BoardSimulator
 
   ghc-options: -Wall
 

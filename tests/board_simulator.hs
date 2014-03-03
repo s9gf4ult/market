@@ -18,7 +18,8 @@ import Data.IORef
 import Data.Time
 import Database.Persist.Sql
 import Database.Persist.Sqlite
-import Market.Board
+import Market.Board.Types
+import Market.Board.BoardSimulator
 import Market.Models
 import Test.Tasty
 import Test.Tasty.HUnit
