@@ -9,10 +9,12 @@
 
 module Market.Models where
 
-import Database.Persist.TH
-import Database.Persist
 import Data.Text
 import Data.Time
+import Database.Persist.TH
+import Market.Models.Fields
+
+
 
 share [mkPersist sqlSettings, mkMigrate "migrateMarketModels"] [persistLowerCase|
 Candle
@@ -20,16 +22,16 @@ Candle
   ticker Text
   period Int
   time UTCTime
-  open Rational
-  close Rational
-  high Rational
-  low Rational
-  volume Rational
+  open Money
+  close Money
+  high Money
+  low Money
+  volume Ticker
 
 Tick
   board Text
   ticker Text
   time UTCTime
-  price Rational
-  volume Rational
+  price Money
+  volume Ticker
 |]

@@ -26,6 +26,7 @@ import Data.Time
 import Database.Persist
 import Database.Persist.Sql
 import Market.Models
+import Market.Models.Fields
 import qualified Data.IntMap.Strict as M
 
 
@@ -51,7 +52,7 @@ createBoardSimulator :: Text
                         -> Ticker
                         -> IO BoardSimulator
 createBoardSimulator
-  boardName
+  board
   tickerName
   moneyName
   pool
@@ -59,7 +60,7 @@ createBoardSimulator
   startmoney
   starttickers = atomically
                  $ BoardSimulator
-                 <$> return boardName
+                 <$> return board
                  <*> return tickerName
                  <*> return moneyName
                  <*> return pool
@@ -135,16 +136,17 @@ tickSink sim = awaitForever $ \(Entity _ tick) -> do
         Buy -> do
           when (tPrice <= lPrice) $ do
             money <- readTVar $ bsMoney sim
-            let needMoney = lVol * tPrice
+            let needMoney = (realToFrac lVol) * tPrice
             when (money >= needMoney) $ do
               writeTVar (bsMoney sim) $ money - needMoney
               modifyTVar' (bsTickers sim) (+ lVol)
               modifyTVar' (bsOrders sim) $ M.delete oid
-              writeTVar (bsLastTime sim)
+              writeTVar (bsLastTime sim) $ tickTime tick
         Sell -> do
           when (tPrice >= lPrice) $ do
             tickers <- readTVar $ bsTickers sim
             when (tickers >= lVol) $ do
               writeTVar (bsTickers sim) $ tickers - lVol
-              modifyTVar' (bsMoney sim) (+ (lVol * tPrice))
+              modifyTVar' (bsMoney sim) (+ ((realToFrac lVol) * tPrice))
               modifyTVar' (bsOrders sim) $ M.delete oid
+              writeTVar (bsLastTime sim) $ tickTime tick

@@ -10,20 +10,16 @@
 
 module Main where
 
-import Test.HUnit
-import Control.Applicative
-import Control.Monad.IO.Class
-import Data.Conduit
-import Data.IORef
 import Data.Time
 import Database.Persist.Sql
 import Database.Persist.Sqlite
-import Market.Board.Types
 import Market.Board.BoardSimulator
+import Market.Board.Types
 import Market.Models
+import Market.Models.Fields
+import Test.HUnit
 import Test.Tasty
 import Test.Tasty.HUnit
-import qualified Data.Conduit.List as L
 
 startTime :: UTCTime
 startTime = UTCTime
@@ -34,48 +30,48 @@ stopTime :: UTCTime
 stopTime = addUTCTime 3600 startTime -- + one hour
 
 
-linearTicks :: Rational -> Rational -> Rational -> [Tick]
+linearTicks :: Money -> Money -> Rational -> [Tick]
 linearTicks startPrice stopPrice tickCount = map makeTick
                                              $ zip [startPrice,startPrice+step .. stopPrice]
                                              $ iterate (addUTCTime timeStep) startTime
   where
     makeTick (price, time) = Tick "" "" time price 10
-    step = (stopPrice - startPrice) / tickCount
-    timeStep = realToFrac $ (toRational $ diffUTCTime stopTime startTime) / tickCount
+    step = (stopPrice - startPrice) / (fromRational tickCount)
+    timeStep = fromRational $ (toRational $ diffUTCTime stopTime startTime) / tickCount
 
-runSim :: Rational -> Rational -> (BoardSimulator -> IO a) -> IO a
-runSim startMonay startTickers action = do
+makeSim :: Money -> Ticker -> IO BoardSimulator
+makeSim startMoney startTickers = do
   pool <- createSqlitePool ":memory:" 1
   runSqlPersistMPool (runMigration migrateMarketModels) pool
-  sim <- createBoardSimulator pool startTime startMonay startTickers
-  action sim
+  createBoardSimulator "" "" "" pool startTime startMoney startTickers
 
 insertTicks :: BoardSimulator -> [Tick] -> IO ()
-
 insertTicks sim ticks = do
   let pool = bsPool sim
   (flip runSqlPersistMPool) pool $ do
     mapM_ insert_ ticks
 
-limitSellOrder :: BoardSimulator -> IO ()
-limitSellOrder sim = do
+limitSellOrder :: IO ()
+limitSellOrder = do
+  sim <- makeSim 0 1
   insertTicks sim $ linearTicks 50 150 4000
-  registerLimitOrder sim $ LimitOrder startTime Sell 100 1
+  _ <- registerLimitOrder sim $ LimitOrder startTime Sell 100 1
   simulateUntil sim stopTime
-  money <- getMoney sim
-  tickers <- getTickers sim
+  money <- moneyAmount sim
+  tickers <- tickersAmount sim
   orders <- listOrders sim
-  assertBool "money must be >= 100" $ money >= 100
+  assertBool "money must be >= 100 && < 100.1" $ money >= 100 && money < 100.1
   assertEqual "tickers mube be 0" tickers 0
   assertEqual "orders must be empty" orders []
 
-limitBuyOrder :: BoardSimulator -> IO ()
-limitBuyOrder sim = do
+limitBuyOrder :: IO ()
+limitBuyOrder = do
+  sim <- makeSim 100 0
   insertTicks sim $ linearTicks 150 50 4000
-  registerLimitOrder sim $ LimitOrder startTime Buy 100 1
+  _ <- registerLimitOrder sim $ LimitOrder startTime Buy 100 1
   simulateUntil sim stopTime
-  money <- getMoney sim
-  tickers <- getTickers sim
+  money <- moneyAmount sim
+  tickers <- tickersAmount sim
   orders <- listOrders sim
   assertBool "money must be close to 0" $ money >= 0 && money < 0.1
   assertEqual "tickers mube be 1" tickers 1
@@ -83,8 +79,8 @@ limitBuyOrder sim = do
 
 mainGroup :: TestTree
 mainGroup = testGroup "board simulator"
-            [ testCase "sell when grows" $ runSim 0 1 limitSellOrder
-            , testCase "buy when lows" $ runSim 100 0 limitBuyOrder]
+            [ testCase "sell when grows" $ limitSellOrder
+            , testCase "buy when lows" $ limitBuyOrder]
 
 main :: IO ()
 main = defaultMain mainGroup
