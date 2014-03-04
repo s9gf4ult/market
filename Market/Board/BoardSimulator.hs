@@ -14,10 +14,11 @@ import Market.Board.Types
 import Control.Applicative
 import Control.Arrow
 import Control.Concurrent.STM.TVar
-import Control.Monad (when, forM_)
-import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Logger (MonadLogger)
+import Control.Monad ( when, forM_ )
+import Control.Monad.IO.Class ( MonadIO(..) )
+import Control.Monad.Logger ( MonadLogger )
 import Control.Monad.STM
+import Control.Monad.Trans.Class( MonadTrans(..) )
 import Data.Conduit
 import Data.Function (on)
 import Data.List (sortBy)
@@ -35,6 +36,7 @@ data BoardSimulator = BoardSimulator
                       , bsTickerName :: Text
                       , bsMoneyName :: Text
                       , bsPool :: ConnectionPool
+                      , bsSession :: SessionId
                       , bsLastTime :: TVar UTCTime
                       , bsOrders :: TVar (M.IntMap Order)
                       , bsMoney :: TVar Money
@@ -58,17 +60,21 @@ createBoardSimulator
   pool
   lasttime
   startmoney
-  starttickers = atomically
-                 $ BoardSimulator
-                 <$> return board
-                 <*> return tickerName
-                 <*> return moneyName
-                 <*> return pool
-                 <*> newTVar lasttime
-                 <*> newTVar M.empty
-                 <*> newTVar startmoney
-                 <*> newTVar starttickers
-                 <*> newTVar 0
+  starttickers = do
+    sid <- (flip runSqlPersistMPool) pool $ do
+      insert $ Session "BoardSimulator"
+    atomically
+      $ BoardSimulator
+      <$> return board
+      <*> return tickerName
+      <*> return moneyName
+      <*> return pool
+      <*> return sid
+      <*> newTVar lasttime
+      <*> newTVar M.empty
+      <*> newTVar startmoney
+      <*> newTVar starttickers
+      <*> newTVar 0
 
 
 instance Board BoardSimulator where
@@ -97,6 +103,16 @@ instance CanLimitOrder BoardSimulator where
     writeTVar (bsLastOrderId simulator) oid
     return oid
 
+instance HasHistory BoardSimulator where
+  lastTransactions sim cnt = do
+    let p = bsPool sim
+        sid = bsSession sim
+    (flip runSqlPersistMPool) p $ do
+      (map entityVal) <$> selectList
+        [TransactionSessionId ==. sid
+        ,TransactionBoard ==. boardName sim
+        ,TransactionTicker ==. boardTickerName sim]
+        [Desc TransactionTime, LimitTo cnt]
 
 -- simulate order execution until specified time
 simulateUntil :: BoardSimulator -> UTCTime -> IO ()
@@ -120,7 +136,12 @@ _simulateUntil simulator fromtime uptime = do
                ] [Asc TickTime]
     $$ tickSink simulator
 
-tickSink :: (MonadIO m) => BoardSimulator -> Sink (Entity Tick) m ()
+whenDef :: (Monad m) => Bool -> m a -> m a -> m a
+whenDef False deflt _ = deflt
+whenDef True _ action = action
+
+tickSink :: (MonadIO m, PersistStore m, PersistMonadBackend m ~ SqlBackend)
+            => BoardSimulator -> Sink (Entity Tick) m ()
 tickSink sim = awaitForever $ \(Entity _ tick) -> do
   orders <- liftIO $ listOrders sim
   let tt = tickTime tick
@@ -132,21 +153,42 @@ tickSink sim = awaitForever $ \(Entity _ tick) -> do
       let tPrice = tickPrice tick
           lPrice = loPrice limitOrder
           lVol = loVolume limitOrder
-      liftIO $ atomically $ case loDirection limitOrder of
+          tt = tickTime tick
+      postDone <- liftIO $ atomically $ case loDirection limitOrder of
         Buy -> do
-          when (tPrice <= lPrice) $ do
+          whenDef (tPrice <= lPrice) (return $ return ()) $ do
             money <- readTVar $ bsMoney sim
             let needMoney = (realToFrac lVol) * tPrice
-            when (money >= needMoney) $ do
+            whenDef (money >= needMoney) (return $ return ())$ do
               writeTVar (bsMoney sim) $ money - needMoney
               modifyTVar' (bsTickers sim) (+ lVol)
               modifyTVar' (bsOrders sim) $ M.delete oid
-              writeTVar (bsLastTime sim) $ tickTime tick
+              writeTVar (bsLastTime sim) tt
+              return $ do
+                insert_ $ Transaction { transactionBoard = boardName sim
+                                      , transactionTicker = boardTickerName sim
+                                      , transactionSessionId = bsSession sim
+                                      , transactionDirection = Buy
+                                      , transactionTime = tt
+                                      , transactionPrice = needMoney
+                                      , transactionVolume = lVol}
+
         Sell -> do
-          when (tPrice >= lPrice) $ do
+          whenDef (tPrice >= lPrice) (return $ return ()) $ do
             tickers <- readTVar $ bsTickers sim
-            when (tickers >= lVol) $ do
+            whenDef (tickers >= lVol) (return $ return ())$ do
               writeTVar (bsTickers sim) $ tickers - lVol
-              modifyTVar' (bsMoney sim) (+ ((realToFrac lVol) * tPrice))
+              let gotMoney = ((realToFrac lVol) * tPrice)
+              modifyTVar' (bsMoney sim) (+ gotMoney)
               modifyTVar' (bsOrders sim) $ M.delete oid
               writeTVar (bsLastTime sim) $ tickTime tick
+              return $ do
+                insert_ $ Transaction { transactionBoard = boardName sim
+                                      , transactionTicker = boardTickerName sim
+                                      , transactionSessionId = bsSession sim
+                                      , transactionDirection = Sell
+                                      , transactionTime = tt
+                                      , transactionPrice = gotMoney
+                                      , transactionVolume = lVol}
+
+      lift postDone

@@ -13,13 +13,10 @@ module Market.Board.Types where
 import Data.Text (Text)
 import Data.Time
 import Market.Models.Fields
+import Market.Models
 
 newtype OrderId = OrderId {unOrderId :: Int}
                 deriving (Bounded, Enum, Eq, Integral, Num, Ord, Read, Real, Show)
-
-
-data Direction = Buy | Sell
-               deriving (Show, Eq, Ord, Enum, Bounded)
 
 data LimitOrder = LimitOrder
                   { loTime :: UTCTime
@@ -48,3 +45,6 @@ class Board board where
 -- if board can set limit orders
 class (Board board) => CanLimitOrder board where
   registerLimitOrder :: board -> LimitOrder -> IO OrderId
+
+class (Board board) => HasHistory board where
+  lastTransactions :: board -> Int -> IO [Transaction]

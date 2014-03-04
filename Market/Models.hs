@@ -34,4 +34,16 @@ Tick
   time UTCTime
   price Money
   volume Ticker
+
+Session
+  client Text
+
+Transaction
+  board Text
+  ticker Text
+  sessionId SessionId
+  direction Direction
+  time UTCTime
+  price Money
+  volume Ticker
 |]

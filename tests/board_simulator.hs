@@ -37,6 +37,14 @@ timeRat r | r >= 0 && r <= 1 = addUTCTime t startTime
     diff = diffUTCTime stopTime startTime
     t = fromRational $ r * (toRational diff)
 
+epsilon :: (Num a, Fractional a) => a
+epsilon = 0.1
+
+almostAbove :: (Fractional a, Ord a) => a -> a -> Bool
+almostAbove target val = val >= target && val <= (target + epsilon)
+
+almostBellow :: (Fractional a, Ord a) => a -> a -> Bool
+almostBellow target val = val <= target && val >= (target - epsilon)
 
 linearTicks :: (Money, Money) -> (UTCTime, UTCTime) -> Rational -> [Tick]
 linearTicks (startPrice, stopPrice) (begTime, endTime) tickCount = map makeTick
@@ -68,9 +76,15 @@ limitSellOrder = do
   money <- moneyAmount sim
   tickers <- tickersAmount sim
   orders <- listOrders sim
-  assertBool "money must be >= 100 && < 100.1" $ money >= 100 && money < 100.1
+  [tr] <- lastTransactions sim 100
+  let tPrice = transactionPrice tr
+      tVol = transactionVolume tr
+  assertBool "money must be >= 100 && < 100.1" $ almostAbove 100 money
   assertEqual "tickers mube be 0" tickers 0
   assertEqual "orders must be empty" orders []
+  assertBool "price of transaction must alsmost 100"
+    $ almostAbove 100 tPrice
+  assertEqual "volume of transaction must be 1" tVol 1
 
 limitBuyOrder :: IO ()
 limitBuyOrder = do
@@ -81,9 +95,15 @@ limitBuyOrder = do
   money <- moneyAmount sim
   tickers <- tickersAmount sim
   orders <- listOrders sim
-  assertBool "money must be close to 0" $ money >= 0 && money < 0.1
+  [tr] <- lastTransactions sim 100
+  let tPrice = transactionPrice tr
+      tVol = transactionVolume tr
+  assertBool "money must be close to 0" $ almostAbove 0 money
   assertEqual "tickers must be 1" tickers 1
   assertEqual "orders must be empty" orders []
+  assertBool "price must be almost 100"
+    $ almostBellow 100 tPrice
+  assertEqual "volume of transaction must be 1" tVol 1
 
 getTheProfit :: (BoardSimulator -> IO ()) -> IO ()
 getTheProfit simulateRunner = do
@@ -98,9 +118,14 @@ getTheProfit simulateRunner = do
   money <- moneyAmount sim
   tickers <- tickersAmount sim
   orders <- listOrders sim
-  assertBool "money > 200" $ money >= 200 && money <= 200.1
+  [lst, ft] <- lastTransactions sim 100
+  assertBool "money > 200" $ almostAbove 200 money
   assertEqual "tickers must be 0" tickers 0
   assertEqual "orders must be empty" orders []
+  assertBool "first transaction price must be 50"
+    $ almostBellow 50 $ transactionPrice ft
+  assertBool "second transaction price must be 150"
+    $ almostAbove 150 $ transactionPrice lst
 
 simulateInParts :: Int -> BoardSimulator -> IO ()
 simulateInParts numparts sim = do
