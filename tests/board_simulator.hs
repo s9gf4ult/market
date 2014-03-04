@@ -72,7 +72,8 @@ limitSellOrder = do
   sim <- makeSim 0 1
   insertTicks sim $ linearTicks (50, 150) (startTime, stopTime) 4000
   _ <- registerLimitOrder sim $ LimitOrder startTime Sell 100 1
-  simulateUntil sim stopTime
+  runWithPool sim
+    $ simulateUntil sim stopTime
   money <- moneyAmount sim
   tickers <- tickersAmount sim
   orders <- listOrders sim
@@ -91,7 +92,8 @@ limitBuyOrder = do
   sim <- makeSim 100 0
   insertTicks sim $ linearTicks (150, 50) (startTime, stopTime) 4000
   _ <- registerLimitOrder sim $ LimitOrder startTime Buy 100 1
-  simulateUntil sim stopTime
+  runWithPool sim
+    $ simulateUntil sim stopTime
   money <- moneyAmount sim
   tickers <- tickersAmount sim
   orders <- listOrders sim
@@ -129,13 +131,12 @@ getTheProfit simulateRunner = do
 
 simulateInParts :: Int -> BoardSimulator -> IO ()
 simulateInParts numparts sim = do
-  forM_ parts $ \endTime -> do
+  runWithPool sim $ forM_ parts $ \endTime -> do
     simulateUntil sim endTime
   where
     pts = max 1 numparts
     step = 1 / (toRational pts)
     parts = take pts $ map timeRat $ iterate (+step) step
-
 
 mainGroup :: TestTree
 mainGroup = testGroup "board simulator"

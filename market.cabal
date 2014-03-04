@@ -46,18 +46,18 @@ test-suite board_simulator
   ghc-options: -Wall
 
   build-depends:       base >=4.6 && <= 4.7
+                     , HUnit
                      , conduit
                      , containers
                      , monad-control
+                     , monad-logger
                      , persistent
                      , persistent-sqlite
                      , persistent-template
                      , pool-conduit
                      , stm
+                     , tasty
+                     , tasty-hunit
                      , text
                      , time
                      , transformers
-                     , monad-logger
-                     , tasty
-                     , tasty-hunit
-                     , HUnit

@@ -114,14 +114,18 @@ instance HasHistory BoardSimulator where
         ,TransactionTicker ==. boardTickerName sim]
         [Desc TransactionTime, LimitTo cnt]
 
+runWithPool :: BoardSimulator -> SqlPersistM a -> IO a
+runWithPool sim action = do
+  let p = bsPool sim
+  runSqlPersistMPool action p
+
 -- simulate order execution until specified time
-simulateUntil :: BoardSimulator -> UTCTime -> IO ()
+simulateUntil :: (MonadBaseControl IO m, MonadIO m, MonadResource m, MonadLogger m) =>
+                 BoardSimulator -> UTCTime -> SqlPersistT m ()
 simulateUntil simulator uptime = do
-  fromtime <- readTVarIO $ bsLastTime simulator
-  when (uptime > fromtime) $ do
-    runSqlPersistMPool
-      (_simulateUntil simulator fromtime uptime)
-      $ bsPool simulator
+  fromtime <- liftIO $ readTVarIO $ bsLastTime simulator
+  when (uptime > fromtime)
+    $ _simulateUntil simulator fromtime uptime
 
 _simulateUntil :: (MonadBaseControl IO m, MonadIO m, MonadResource m, MonadLogger m) =>
                   BoardSimulator
