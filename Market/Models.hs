@@ -27,6 +27,7 @@ Candle
   high Money
   low Money
   volume Ticker
+  deriving Show Eq
 
 Tick
   board Text
@@ -34,9 +35,11 @@ Tick
   time UTCTime
   price Money
   volume Ticker
+  deriving Show Eq
 
 Session
   client Text
+  deriving Show Eq
 
 Transaction
   board Text
@@ -46,4 +49,5 @@ Transaction
   time UTCTime
   price Money
   volume Ticker
+  deriving Show Eq
 |]

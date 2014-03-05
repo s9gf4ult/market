@@ -21,6 +21,9 @@ library
                      , Market.Board.BoardSimulator
                      , Market.Board.Types
                      , Market.Models.Fields
+                     , Market.History
+                     , Market.History.Types
+                     , Market.History.Persistent
 
   ghc-options: -Wall
 
